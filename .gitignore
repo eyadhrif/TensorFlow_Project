@@ -4,3 +4,7 @@ __pycache__/
 .env
 .ipynb_checkpoints/
 figures/*.png
+.venv 
+venv/
+ENV/
+.venv
