@@ -1,6 +1,11 @@
 import tensorflow as tf
 from tensorflow.keras import layers, models
-from augment import build_augmentation
+
+# Import augmentation - handle both direct and module import
+try:
+    from augment import build_augmentation
+except ImportError:
+    from .augment import build_augmentation
 gpus = tf.config.list_physical_devices('GPU')
 if gpus:
     try:
@@ -116,13 +121,14 @@ def create_cnn_model_with_augmentation(input_shape=(28, 28, 1), num_classes=10):
     return model
 
 
-def get_callbacks(patience=5, model_path='best_model.h5'):
+def get_callbacks(patience=10, model_path='best_model.h5', reduce_lr_patience=5):
     """
-    Create training callbacks.
+    Create training callbacks for standard model.
     
     Args:
         patience: Number of epochs with no improvement for early stopping
         model_path: Path to save the best model
+        reduce_lr_patience: Patience for learning rate reduction
     
     Returns:
         List of callbacks
@@ -143,7 +149,47 @@ def get_callbacks(patience=5, model_path='best_model.h5'):
         tf.keras.callbacks.ReduceLROnPlateau(
             monitor='val_loss',
             factor=0.5,
-            patience=3,
+            patience=reduce_lr_patience,
+            min_lr=1e-7,
+            verbose=1
+        )
+    ]
+    return callbacks
+
+
+def get_callbacks_augmented(patience=15, model_path='best_model_aug.h5', reduce_lr_patience=7):
+    """
+    Create training callbacks for augmented model.
+    Augmented models need MORE patience because:
+    - Training is harder due to augmentation
+    - Convergence is slower but more stable
+    - Better generalization takes more epochs
+    
+    Args:
+        patience: Number of epochs with no improvement for early stopping (default: 15)
+        model_path: Path to save the best model
+        reduce_lr_patience: Patience for learning rate reduction (default: 7)
+    
+    Returns:
+        List of callbacks
+    """
+    callbacks = [
+        tf.keras.callbacks.EarlyStopping(
+            monitor='val_loss',
+            patience=patience,
+            restore_best_weights=True,
+            verbose=1
+        ),
+        tf.keras.callbacks.ModelCheckpoint(
+            filepath=model_path,
+            monitor='val_accuracy',
+            save_best_only=True,
+            verbose=1
+        ),
+        tf.keras.callbacks.ReduceLROnPlateau(
+            monitor='val_loss',
+            factor=0.5,
+            patience=reduce_lr_patience,
             min_lr=1e-7,
             verbose=1
         )
@@ -177,7 +223,7 @@ if __name__ == "__main__":
         validation_data=(x_val, y_val),
         epochs=50,
         batch_size=128,
-        callbacks=get_callbacks(patience=5, model_path='best_model.h5'),
+        callbacks=get_callbacks(patience=10, model_path='best_model.h5'),
         verbose=1
     )
     
@@ -198,7 +244,7 @@ if __name__ == "__main__":
         validation_data=(x_val, y_val),
         epochs=50,
         batch_size=128,
-        callbacks=get_callbacks(patience=5, model_path='best_model_aug.h5'),
+        callbacks=get_callbacks_augmented(patience=15, model_path='best_model_aug.h5'),
         verbose=1
     )
     
